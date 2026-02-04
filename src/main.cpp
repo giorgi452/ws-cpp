@@ -1,3 +1,4 @@
+#include <http_request.hpp>
 #include <iostream>
 #include <netinet/in.h>
 #include <string>
@@ -20,15 +21,38 @@ int main(int argc, char **argv) {
   while (true) {
     int new_socket = accept(server_fd, nullptr, nullptr);
 
-    char buffer[1024] = {0};
-    read(new_socket, buffer, 1024);
-    std::cout << "Request received:\n" << buffer << std::endl;
+    char buffer[4096] = {0};
+    int bytes_read = read(new_socket, buffer, 4096);
 
-    std::string response = "HTTP/1.1 200 OK\n"
-                           "Content-Type: text/plain\n"
-                           "Content-Length: 12\n\n"
-                           "Hello World!";
-    send(new_socket, response.c_str(), response.length(), 0);
+    if (bytes_read > 0) {
+      HttpRequest request;
+      request.parse(std::string(buffer));
+
+      std::cout << "User requested: " << request.path << " using "
+                << request.method << std::endl;
+      std::cout << "User-Agent: " << request.headers["User-Agent"] << std::endl;
+
+      std::string response;
+      if (request.method == "GET" && request.path == "/") {
+        response = "HTTP/1.1 200 OK\nContent-Length: 13\n\nWelcome Home!";
+      } else if (request.method == "POST" && request.path == "/") {
+        std::cout << "Received POST data: " << request.body << std::endl;
+
+        response = "HTTP/1.1 201 Created\r\n"
+                   "Content-Type: text/plain\r\n"
+                   "Content-Length: " +
+                   std::to_string(request.body.length()) +
+                   "\r\n"
+                   "\r\n" +
+                   request.body;
+      } else if (request.path == "/about") {
+        response = "HTTP/1.1 200 OK\nContent-Length: 17\n\nAbout this server";
+      } else {
+        response = "HTTP/1.1 404 Not Found\nContent-Length: 9\n\nNot Found";
+      }
+
+      send(new_socket, response.c_str(), response.length(), 0);
+    }
 
     close(new_socket);
   }
