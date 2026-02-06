@@ -13,7 +13,8 @@ executable(
     'src/main.cpp', 
     'src/routes.cpp', 
     'framework/http_request.cpp', 
-    'framework/socket.cpp'
+    'framework/socket.cpp',
+    'framework/not_found.cpp'
   ],
   include_directories: inc
 )
