@@ -1,5 +1,7 @@
 #include "framework/include/http_request.hpp"
 #include "framework/include/socket.hpp"
+#include "not_found.hpp"
+#include <iostream>
 #include <netinet/in.h>
 #include <routes.hpp>
 #include <string>
@@ -12,6 +14,10 @@ int main(int argc, char **argv) {
 
   Socket server;
   int server_fd = server.init();
+
+  std::cout << "Welcome To Web Server++" << std::endl;
+  std::cout << "-----------------------" << std::endl;
+  std::cout << "Server URL: http://localhost:8080" << std::endl;
 
   while (true) {
     int new_socket = accept(server_fd, nullptr, nullptr);
@@ -29,8 +35,7 @@ int main(int argc, char **argv) {
       if (it != routes.end()) {
         response = it->second(request);
       } else {
-        response =
-            "HTTP/1.1 404 Not Found\r\nContent-Length: 9\r\n\r\nNot Found";
+        response = not_found();
       }
       send(new_socket, response.c_str(), response.length(), 0);
     }
