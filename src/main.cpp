@@ -1,11 +1,14 @@
 #include <http_request.hpp>
-#include <iostream>
 #include <netinet/in.h>
+#include <routes.hpp>
 #include <string>
 #include <sys/socket.h>
 #include <unistd.h>
 
 int main(int argc, char **argv) {
+  RouteMap routes;
+  setup_routes(routes);
+
   int server_fd = socket(AF_INET, SOCK_STREAM, 0);
 
   sockaddr_in address;
@@ -15,8 +18,6 @@ int main(int argc, char **argv) {
 
   int _ = bind(server_fd, (struct sockaddr *)&address, sizeof(address));
   listen(server_fd, 10);
-
-  std::cout << "Server listening on port 8080..." << std::endl;
 
   while (true) {
     int new_socket = accept(server_fd, nullptr, nullptr);
@@ -28,29 +29,15 @@ int main(int argc, char **argv) {
       HttpRequest request;
       request.parse(std::string(buffer));
 
-      std::cout << "User requested: " << request.path << " using "
-                << request.method << std::endl;
-      std::cout << "User-Agent: " << request.headers["User-Agent"] << std::endl;
+      auto it = routes.find({request.method, request.path});
 
       std::string response;
-      if (request.method == "GET" && request.path == "/") {
-        response = "HTTP/1.1 200 OK\nContent-Length: 13\n\nWelcome Home!";
-      } else if (request.method == "POST" && request.path == "/") {
-        std::cout << "Received POST data: " << request.body << std::endl;
-
-        response = "HTTP/1.1 201 Created\r\n"
-                   "Content-Type: text/plain\r\n"
-                   "Content-Length: " +
-                   std::to_string(request.body.length()) +
-                   "\r\n"
-                   "\r\n" +
-                   request.body;
-      } else if (request.path == "/about") {
-        response = "HTTP/1.1 200 OK\nContent-Length: 17\n\nAbout this server";
+      if (it != routes.end()) {
+        response = it->second(request);
       } else {
-        response = "HTTP/1.1 404 Not Found\nContent-Length: 9\n\nNot Found";
+        response =
+            "HTTP/1.1 404 Not Found\r\nContent-Length: 9\r\n\r\nNot Found";
       }
-
       send(new_socket, response.c_str(), response.length(), 0);
     }
 

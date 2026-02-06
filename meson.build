@@ -9,7 +9,7 @@ inc = include_directories('include')
 
 executable(
   'ws-cpp', 
-  ['src/main.cpp', 'src/http_request.cpp'],
+  ['src/main.cpp', 'src/http_request.cpp', 'src/routes.cpp'],
   include_directories: inc
 )
 
