@@ -1,4 +1,4 @@
-#include "http_request.hpp"
+#include "include/http_request.hpp"
 #include <sstream>
 
 void HttpRequest::parse(const std::string &raw_request) {
@@ -14,9 +14,8 @@ void HttpRequest::parse(const std::string &raw_request) {
     size_t colon_pos = line.find(':');
     if (colon_pos != std::string::npos) {
       std::string key = line.substr(0, colon_pos);
-      std::string value = line.substr(colon_pos + 2); // Skip ": "
+      std::string value = line.substr(colon_pos + 2);
 
-      // Basic cleanup of carriage return
       if (!value.empty() && value.back() == '\r')
         value.pop_back();
       headers[key] = value;

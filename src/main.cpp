@@ -1,4 +1,5 @@
-#include <http_request.hpp>
+#include "framework/include/http_request.hpp"
+#include "framework/include/socket.hpp"
 #include <netinet/in.h>
 #include <routes.hpp>
 #include <string>
@@ -9,15 +10,8 @@ int main(int argc, char **argv) {
   RouteMap routes;
   setup_routes(routes);
 
-  int server_fd = socket(AF_INET, SOCK_STREAM, 0);
-
-  sockaddr_in address;
-  address.sin_family = AF_INET;
-  address.sin_addr.s_addr = INADDR_ANY;
-  address.sin_port = htons(8080);
-
-  int _ = bind(server_fd, (struct sockaddr *)&address, sizeof(address));
-  listen(server_fd, 10);
+  Socket server;
+  int server_fd = server.init();
 
   while (true) {
     int new_socket = accept(server_fd, nullptr, nullptr);

@@ -5,11 +5,16 @@ project(
   default_options : ['cpp_std=c++17']
 )
 
-inc = include_directories('include')
+inc = include_directories(['include', 'framework/include'])
 
 executable(
   'ws-cpp', 
-  ['src/main.cpp', 'src/http_request.cpp', 'src/routes.cpp'],
+  [
+    'src/main.cpp', 
+    'src/routes.cpp', 
+    'framework/http_request.cpp', 
+    'framework/socket.cpp'
+  ],
   include_directories: inc
 )
 
