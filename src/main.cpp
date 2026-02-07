@@ -9,8 +9,9 @@
 #include <unistd.h>
 
 int main(int argc, char **argv) {
-  RouteMap routes;
-  setup_routes(routes);
+  RouteMap route_map;
+  Routes router;
+  router.setup(route_map);
 
   Socket server;
   int server_fd = server.init();
@@ -29,10 +30,10 @@ int main(int argc, char **argv) {
       HttpRequest request;
       request.parse(std::string(buffer));
 
-      auto it = routes.find({request.method, request.path});
+      auto it = route_map.find({request.method, request.path});
 
       std::string response;
-      if (it != routes.end()) {
+      if (it != route_map.end()) {
         response = it->second(request);
       } else {
         response = not_found();
