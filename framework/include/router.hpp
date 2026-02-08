@@ -5,7 +5,7 @@
 #include <functional>
 #include <string>
 
-using Handler = std::function<std::string(const HttpRequest &)>;
+using Handler = std::function<HttpResponse(const HttpRequest &)>;
 
 using RouteKey = std::pair<std::string, std::string>;
 
@@ -26,14 +26,12 @@ public:
   HttpResponse handle(const HttpRequest &req) {
     auto it = routes.find({req.method, req.path});
     if (it != routes.end()) {
-      HttpResponse res;
-      res.set_body(it->second(req));
-      return res;
+      return it->second(req);
     }
 
     // Default 404
     HttpResponse res;
-    res.status_code = 404;
+    res.set_status(404);
     res.status_message = "Not Found";
     res.set_body("Page not found");
     return res;
