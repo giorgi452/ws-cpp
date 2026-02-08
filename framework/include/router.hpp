@@ -1,5 +1,7 @@
 #pragma once
+
 #include "http_request.hpp"
+#include "http_response.hpp"
 #include <functional>
 #include <string>
 
@@ -11,6 +13,29 @@ using RouteMap = std::map<RouteKey, Handler>;
 
 class Router {
 public:
-  void get(std::string path, RouteMap *routes, Handler handler);
-  void post(std::string path, RouteMap *routes, Handler handler);
+  RouteMap routes;
+
+  void get(std::string path, Handler handler) {
+    routes[{"GET", path}] = handler;
+  };
+
+  void post(std::string path, Handler handler) {
+    routes[{"POST", path}] = handler;
+  };
+
+  HttpResponse handle(const HttpRequest &req) {
+    auto it = routes.find({req.method, req.path});
+    if (it != routes.end()) {
+      HttpResponse res;
+      res.set_body(it->second(req));
+      return res;
+    }
+
+    // Default 404
+    HttpResponse res;
+    res.status_code = 404;
+    res.status_message = "Not Found";
+    res.set_body("Page not found");
+    return res;
+  }
 };
