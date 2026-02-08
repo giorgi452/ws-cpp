@@ -1,7 +1,6 @@
 #pragma once
-#include "router.hpp"
 
-class Routes {
-public:
-  void setup(RouteMap &routes);
-};
+#include "http_request.hpp"
+#include <string>
+
+std::string setup_router(HttpRequest request);

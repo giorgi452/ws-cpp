@@ -1,6 +1,5 @@
 #include "framework/include/http_request.hpp"
 #include "framework/include/socket.hpp"
-#include "not_found.hpp"
 #include <iostream>
 #include <netinet/in.h>
 #include <routes.hpp>
@@ -9,9 +8,6 @@
 #include <unistd.h>
 
 int main(int argc, char **argv) {
-  RouteMap route_map;
-  Routes router;
-  router.setup(route_map);
 
   Socket server;
   int server_fd = server.init();
@@ -30,14 +26,7 @@ int main(int argc, char **argv) {
       HttpRequest request;
       request.parse(std::string(buffer));
 
-      auto it = route_map.find({request.method, request.path});
-
-      std::string response;
-      if (it != route_map.end()) {
-        response = it->second(request);
-      } else {
-        response = not_found();
-      }
+      std::string response = setup_router(request);
       send(new_socket, response.c_str(), response.length(), 0);
     }
 
