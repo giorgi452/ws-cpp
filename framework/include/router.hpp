@@ -7,24 +7,50 @@
 
 using Handler = std::function<HttpResponse(const HttpRequest &)>;
 
-using RouteKey = std::pair<std::string, std::string>;
+struct RouteKey {
+  std::string method;
+  std::string path;
 
-using RouteMap = std::map<RouteKey, Handler>;
+  RouteKey(std::string_view m, std::string_view p) : method(m), path(p) {}
+
+  bool operator==(const RouteKey &other) const {
+    return method == other.method && path == other.path;
+  }
+};
+
+struct RouteKeyHash {
+  std::size_t operator()(const RouteKey &key) const {
+    return std::hash<std::string>()(key.method) ^
+           (std::hash<std::string>()(key.path) << 1);
+  }
+};
+
+using RouteMap = std::unordered_map<RouteKey, Handler, RouteKeyHash>;
 
 class Router {
 public:
   RouteMap routes;
 
-  void get(std::string path, Handler handler) {
-    routes[{"GET", path}] = handler;
-  };
+  void get(std::string_view path, Handler handler) {
+    routes.emplace(RouteKey("GET", path), std::move(handler));
+  }
 
-  void post(std::string path, Handler handler) {
-    routes[{"POST", path}] = handler;
-  };
+  void post(std::string_view path, Handler handler) {
+    routes.emplace(RouteKey("POST", path), std::move(handler));
+  }
+
+  void put(std::string_view path, Handler handler) {
+    routes.emplace(RouteKey("PUT", path), std::move(handler));
+  }
+
+  void del(std::string_view path, Handler handler) {
+    routes.emplace(RouteKey("DELETE", path), std::move(handler));
+  }
 
   HttpResponse handle(const HttpRequest &req) {
-    auto it = routes.find({req.method, req.path});
+    RouteKey key(req.method, req.path);
+
+    auto it = routes.find(key);
     if (it != routes.end()) {
       return it->second(req);
     }
@@ -34,6 +60,7 @@ public:
     res.set_status(404);
     res.status_message = "Not Found";
     res.set_body("Page not found");
+    res.keep_alive = req.wants_keep_alive(); // Match client preference
     return res;
   }
 };

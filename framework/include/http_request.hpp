@@ -2,42 +2,79 @@
 
 #include <algorithm>
 #include <map>
-#include <sstream>
 #include <string>
+#include <string_view>
 
 class HttpRequest {
 public:
   std::string method, path, version, body;
   std::map<std::string, std::string> headers;
 
-  void parse(const std::string &raw_request) {
-    std::istringstream stream(raw_request);
-    std::string line;
+  void parse(std::string_view raw_request) {
+    size_t pos = 0;
+    size_t end = raw_request.size();
 
-    if (std::getline(stream, line)) {
-      std::istringstream line_stream(line);
-      line_stream >> method >> path >> version;
-    }
+    size_t line_end = raw_request.find("\r\n", pos);
+    if (line_end == std::string_view::npos)
+      return;
 
-    while (std::getline(stream, line) && line != "\r") {
-      size_t colon_pos = line.find(':');
-      if (colon_pos != std::string::npos) {
-        std::string key = line.substr(0, colon_pos);
-        std::string value = line.substr(colon_pos + 2);
+    std::string_view request_line = raw_request.substr(pos, line_end - pos);
 
-        if (!value.empty() && value.back() == '\r')
-          value.pop_back();
-        headers[key] = value;
+    size_t space1 = request_line.find(' ');
+    if (space1 != std::string_view::npos) {
+      method = std::string(request_line.substr(0, space1));
+
+      // Extract path
+      size_t space2 = request_line.find(' ', space1 + 1);
+      if (space2 != std::string_view::npos) {
+        path =
+            std::string(request_line.substr(space1 + 1, space2 - space1 - 1));
+        version = std::string(request_line.substr(space2 + 1));
       }
     }
 
-    if (headers.count("Content-Length")) {
-      int length = std::stoi(headers["Content-Length"]);
-      char *body_buf = new char[length + 1];
-      stream.read(body_buf, length);
-      body_buf[length] = '\0';
-      body = body_buf;
-      delete[] body_buf;
+    pos = line_end + 2;
+
+    while (pos < end) {
+      line_end = raw_request.find("\r\n", pos);
+      if (line_end == std::string_view::npos)
+        break;
+
+      std::string_view line = raw_request.substr(pos, line_end - pos);
+
+      // Empty line signals end of headers
+      if (line.empty()) {
+        pos = line_end + 2;
+        break;
+      }
+
+      // Parse header: "Key: Value"
+      size_t colon = line.find(':');
+      if (colon != std::string_view::npos) {
+        std::string_view key = line.substr(0, colon);
+        std::string_view value = line.substr(colon + 1);
+
+        // Trim leading space from value
+        while (!value.empty() && value[0] == ' ') {
+          value.remove_prefix(1);
+        }
+
+        headers[std::string(key)] = std::string(value);
+      }
+
+      pos = line_end + 2;
+    }
+
+    auto it = headers.find("Content-Length");
+    if (it != headers.end() && pos < end) {
+      try {
+        size_t content_length = std::stoul(it->second);
+        if (pos + content_length <= end) {
+          body = std::string(raw_request.substr(pos, content_length));
+        }
+      } catch (...) {
+        // Invalid Content-Length, ignore
+      }
     }
   }
 

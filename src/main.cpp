@@ -10,7 +10,7 @@ int main(int argc, char **argv) {
   Socket server;
   int server_fd = server.init();
 
-  ThreadPool pool(std::thread::hardware_concurrency());
+  ThreadPool pool(std::thread::hardware_concurrency() * 2);
 
   while (true) {
     struct sockaddr_in client_addr;
