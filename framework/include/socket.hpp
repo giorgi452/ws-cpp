@@ -8,6 +8,7 @@
 #include <sys/socket.h>
 #include <sys/types.h>
 #include <unistd.h>
+#include <vector>
 
 class Socket {
 public:
@@ -16,95 +17,109 @@ public:
 
   int init() {
     socket_fd = socket(AF_INET, SOCK_STREAM, 0);
-
-    if (socket_fd == -1) {
+    if (socket_fd == -1)
       return -1;
-    }
 
     int opt = 1;
     setsockopt(socket_fd, SOL_SOCKET, SO_REUSEADDR, &opt, sizeof(opt));
-
     setsockopt(socket_fd, IPPROTO_TCP, TCP_NODELAY, &opt, sizeof(opt));
 
-    sockaddr_in address;
-    address.sin_family = AF_INET;
-    address.sin_addr.s_addr = INADDR_ANY;
-    address.sin_port = htons(8080);
+    sockaddr_in addr{};
+    addr.sin_family = AF_INET;
+    addr.sin_addr.s_addr = INADDR_ANY;
+    addr.sin_port = htons(8080);
 
-    if (bind(socket_fd, (struct sockaddr *)&address, sizeof(address)) < 0) {
+    if (bind(socket_fd, (struct sockaddr *)&addr, sizeof(addr)) < 0)
       return -1;
-    }
-
-    if (listen(socket_fd, SOMAXCONN) < 0) {
+    if (listen(socket_fd, SOMAXCONN) < 0)
       return -1;
-    }
 
     return socket_fd;
   }
 
-  void handle(int client_socket) {
-    struct timeval timeout;
-    timeout.tv_sec = 10;
-    timeout.tv_usec = 0;
+  void handle(int client_fd) {
+    struct timeval tv{};
+    tv.tv_sec = 60;
+    tv.tv_usec = 0;
+    setsockopt(client_fd, SOL_SOCKET, SO_RCVTIMEO, &tv, sizeof(tv));
+    setsockopt(client_fd, SOL_SOCKET, SO_SNDTIMEO, &tv, sizeof(tv));
 
-    setsockopt(client_socket, SOL_SOCKET, SO_SNDTIMEO, &timeout,
-               sizeof(timeout));
+    int ka = 1;
+    setsockopt(client_fd, SOL_SOCKET, SO_KEEPALIVE, &ka, sizeof(ka));
+    int idle = 75;
+    setsockopt(client_fd, IPPROTO_TCP, TCP_KEEPIDLE, &idle, sizeof(idle));
 
-    setsockopt(client_socket, SOL_SOCKET, SO_RCVTIMEO, &timeout,
-               sizeof(timeout));
+    static thread_local std::vector<char> buf(256 * 1024);
+    size_t buf_len = 0;
+    int req_count = 0;
+    constexpr int MAX_REQS = 5000;
 
-    int keepalive = 1;
-    setsockopt(client_socket, SOL_SOCKET, SO_KEEPALIVE, &keepalive,
-               sizeof(keepalive));
+    bool alive = true;
 
-    int keepidle = 120;
-    setsockopt(client_socket, IPPROTO_TCP, TCP_KEEPIDLE, &keepidle,
-               sizeof(keepidle));
+    while (alive && req_count < MAX_REQS) {
+      if (buf_len >= buf.size() - 8192) {
+        buf.resize(buf.size() * 2);
+      }
 
-    static thread_local char buffer[16384];
+      ssize_t n =
+          recv(client_fd, buf.data() + buf_len, buf.size() - buf_len - 1, 0);
 
-    int request_count = 0;
-    const int max_requests = 1000; // Increased for better connection reuse
-    bool keep_alive = true;
-
-    while (keep_alive && request_count < max_requests) {
-      ssize_t bytes_read = recv(client_socket, buffer, sizeof(buffer) - 1, 0);
-
-      if (bytes_read <= 0) {
+      if (n == 0)
+        break;
+      if (n < 0) {
+        if (errno == EAGAIN || errno == EWOULDBLOCK)
+          continue;
         break;
       }
 
-      buffer[bytes_read] = '\0';
+      buf_len += static_cast<size_t>(n);
 
-      HttpRequest request;
-      request.parse(std::string(buffer, bytes_read));
+      size_t offset = 0;
 
-      HttpResponse res = setup_router(request);
-      keep_alive = request.wants_keep_alive();
+      while (offset < buf_len) {
+        HttpRequest req;
+        std::string_view data(buf.data() + offset, buf_len - offset);
 
-      res.keep_alive = keep_alive;
-
-      std::string response_str = res.to_string();
-      size_t total_sent = 0;
-
-      while (total_sent < response_str.length()) {
-        ssize_t sent = send(client_socket, response_str.c_str(),
-                            response_str.length() - total_sent, MSG_NOSIGNAL);
-        if (sent <= 0) {
-          if (errno == EAGAIN || errno == EWOULDBLOCK) {
-            usleep(100); // Wait 100 microseconds
-            continue;
-          }
-          keep_alive = false; // Connection error
+        auto [ok, consumed] = req.parse(data);
+        if (!ok || consumed == 0)
           break;
+
+        HttpResponse res = setup_router(req);
+        alive = req.wants_keep_alive() && res.keep_alive;
+        res.keep_alive = alive;
+
+        std::string reply = res.to_string();
+
+        size_t sent_total = 0;
+        while (sent_total < reply.size()) {
+          ssize_t s = send(client_fd, reply.data() + sent_total,
+                           reply.size() - sent_total, MSG_NOSIGNAL);
+          if (s <= 0) {
+            if (errno == EAGAIN || errno == EWOULDBLOCK) {
+              usleep(500);
+              continue;
+            }
+            alive = false;
+            goto finish;
+          }
+          sent_total += static_cast<size_t>(s);
         }
-        total_sent += sent;
+
+        req_count++;
+        offset += consumed;
       }
 
-      request_count++;
+      // Compact remaining data
+      if (offset < buf_len) {
+        std::memmove(buf.data(), buf.data() + offset, buf_len - offset);
+        buf_len -= offset;
+      } else {
+        buf_len = 0;
+      }
     }
 
-    shutdown(client_socket, SHUT_RDWR);
-    close(client_socket);
+  finish:
+    shutdown(client_fd, SHUT_RDWR);
+    close(client_fd);
   }
 };
