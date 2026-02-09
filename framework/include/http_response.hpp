@@ -12,6 +12,8 @@ public:
   std::string body;
   std::map<std::string, std::string> headers;
 
+  HttpResponse() { headers["Connection"] = "close"; }
+
   void set_body(const std::string &content,
                 const std::string &content_type = "text/plain") {
     body = content;
