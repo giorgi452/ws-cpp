@@ -5,7 +5,7 @@
 
 using nlohmann::json;
 
-std::string setup_router(HttpRequest request) {
+HttpResponse setup_router(HttpRequest request) {
   Router router;
 
   router.get("/", [](const HttpRequest &req) {
@@ -35,5 +35,5 @@ std::string setup_router(HttpRequest request) {
   });
 
   HttpResponse response = router.handle(request);
-  return response.to_string();
+  return response;
 }

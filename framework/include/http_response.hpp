@@ -11,8 +11,9 @@ public:
   std::string status_message = "OK";
   std::string body;
   std::map<std::string, std::string> headers;
+  bool keep_alive = true;
 
-  HttpResponse() { headers["Connection"] = "close"; }
+  HttpResponse() {}
 
   void set_body(const std::string &content,
                 const std::string &content_type = "text/plain") {
@@ -53,6 +54,13 @@ public:
     std::ostringstream oss;
 
     oss << "HTTP/1.1 " << status_code << " " << status_message << "\r\n";
+
+    if (keep_alive) {
+      headers["Connection"] = "keep-alive";
+      headers["Keep-Alive"] = "timeout=5, max=100";
+    } else {
+      headers["Connection"] = "close";
+    }
 
     for (auto const &[key, val] : headers) {
       oss << key << ": " << val << "\r\n";

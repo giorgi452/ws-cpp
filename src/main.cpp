@@ -10,16 +10,17 @@ int main(int argc, char **argv) {
   Socket server;
   int server_fd = server.init();
 
-  ThreadPool pool(10);
+  ThreadPool pool(std::thread::hardware_concurrency());
 
   while (true) {
-    int new_socket = accept(server_fd, nullptr, nullptr);
+    struct sockaddr_in client_addr;
+    socklen_t client_len = sizeof(client_addr);
+    int client_fd =
+        accept(server_fd, (struct sockaddr *)&client_addr, &client_len);
 
-    if (new_socket < 0) {
-      continue;
+    if (client_fd >= 0) {
+      pool.enqueue([client_fd, &server] { server.handle(client_fd); });
     }
-
-    pool.enqueue([new_socket, &server]() { server.handle(new_socket); });
   }
   return 0;
 }

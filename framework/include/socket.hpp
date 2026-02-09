@@ -1,6 +1,7 @@
 #pragma once
 
 #include "http_request.hpp"
+#include "http_response.hpp"
 #include "routes.hpp"
 #include <netinet/in.h>
 #include <netinet/tcp.h>
@@ -33,7 +34,7 @@ public:
       return -1;
     }
 
-    if (listen(socket_fd, 1024) < 0) {
+    if (listen(socket_fd, 4096) < 0) {
       return -1;
     }
 
@@ -41,33 +42,41 @@ public:
   }
 
   void handle(int client_socket) {
-    char buffer[8192] = {0};
-    ssize_t bytes_read = recv(client_socket, buffer, sizeof(buffer) - 1, 0);
+    struct timeval timeout;
+    timeout.tv_sec = 5;
+    timeout.tv_usec = 0;
+    setsockopt(client_socket, SOL_SOCKET, SO_RCVTIMEO, &timeout,
+               sizeof(timeout));
 
-    if (bytes_read <= 0) {
-      close(client_socket);
-      return;
-    }
+    int opt = 1;
+    setsockopt(client_socket, SOL_SOCKET, SO_REUSEADDR, &opt, sizeof(opt));
 
-    HttpRequest request;
-    request.parse(std::string(buffer, bytes_read));
+    while (true) {
+      char buffer[8192];
+      ssize_t bytes_read = recv(client_socket, buffer, sizeof(buffer) - 1, 0);
 
-    std::string response = setup_router(request);
-
-    size_t total_sent = 0;
-    const char *data = response.c_str();
-    size_t len = response.length();
-
-    while (total_sent < len) {
-      ssize_t sent = send(client_socket, data + total_sent, len - total_sent,
-                          MSG_NOSIGNAL);
-      if (sent <= 0) {
+      if (bytes_read <= 0) {
         break;
       }
-      total_sent += sent;
+
+      HttpRequest request;
+      request.parse(std::string(buffer, bytes_read));
+
+      HttpResponse res = setup_router(request);
+      bool client_wants_alive = request.wants_keep_alive();
+
+      res.keep_alive = client_wants_alive;
+      std::string response_str = res.to_string();
+
+      if (send(client_socket, response_str.c_str(), response_str.length(),
+               MSG_NOSIGNAL) <= 0) {
+        break;
+      }
+
+      if (!client_wants_alive)
+        break;
     }
 
-    shutdown(client_socket, SHUT_RDWR);
     close(client_socket);
   }
 };
