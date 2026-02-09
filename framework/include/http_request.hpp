@@ -1,5 +1,6 @@
 #pragma once
 
+#include <algorithm>
 #include <map>
 #include <sstream>
 #include <string>
@@ -38,5 +39,16 @@ public:
       body = body_buf;
       delete[] body_buf;
     }
+  }
+
+  bool wants_keep_alive() const {
+    auto it = headers.find("Connection");
+    if (it != headers.end()) {
+      std::string conn = it->second;
+      std::transform(conn.begin(), conn.end(), conn.begin(),
+                     [](unsigned char c) { return std::tolower(c); });
+      return conn.find("keep-alive") != std::string::npos;
+    }
+    return version == "HTTP/1.1";
   }
 };

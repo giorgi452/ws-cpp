@@ -1,6 +1,6 @@
 #pragma once
 
 #include "http_request.hpp"
-#include <string>
+#include "http_response.hpp"
 
-std::string setup_router(HttpRequest request);
+HttpResponse setup_router(HttpRequest request);
