@@ -5,6 +5,7 @@
 #include <map>
 #include <string>
 #include <string_view>
+#include <stdexcept>
 
 struct ParseResult {
   bool success = false;
@@ -74,8 +75,10 @@ public:
     if (it != headers.end()) {
       try {
         content_length = std::stoul(it->second);
-      } catch (...) {
-        return result; // invalid length
+      } catch (const std::invalid_argument& e) {
+        return result; // invalid Content-Length format
+      } catch (const std::out_of_range& e) {
+        return result; // Content-Length value out of range
       }
     }
 
