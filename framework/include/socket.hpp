@@ -21,13 +21,15 @@ public:
       return -1;
 
     int opt = 1;
-    setsockopt(socket_fd, SOL_SOCKET, SO_REUSEADDR, &opt, sizeof(opt));
-    setsockopt(socket_fd, IPPROTO_TCP, TCP_NODELAY, &opt, sizeof(opt));
+    if (setsockopt(socket_fd, SOL_SOCKET, SO_REUSEADDR, &opt, sizeof(opt)) < 0)
+      return -1;
+    if (setsockopt(socket_fd, IPPROTO_TCP, TCP_NODELAY, &opt, sizeof(opt)) < 0)
+      return -1;
 
     sockaddr_in addr{};
     addr.sin_family = AF_INET;
     addr.sin_addr.s_addr = INADDR_ANY;
-    addr.sin_port = htons(8080);
+    addr.sin_port = htons(DEFAULT_PORT);
 
     if (bind(socket_fd, (struct sockaddr *)&addr, sizeof(addr)) < 0)
       return -1;
@@ -37,22 +39,43 @@ public:
     return socket_fd;
   }
 
+private:
+  static constexpr int DEFAULT_PORT = 8080;
+  static constexpr int SOCKET_TIMEOUT_SEC = 60;
+  static constexpr int TCP_KEEPALIVE_IDLE = 75;
+  static constexpr int BUFFER_SIZE = 256 * 1024;
+  static constexpr int MAX_REQUESTS_PER_CONNECTION = 5000;
+  static constexpr int REQUEST_PROCESSING_DELAY_US = 500;
+
+public:
   void handle(int client_fd) {
     struct timeval tv{};
-    tv.tv_sec = 60;
+    tv.tv_sec = SOCKET_TIMEOUT_SEC;
     tv.tv_usec = 0;
-    setsockopt(client_fd, SOL_SOCKET, SO_RCVTIMEO, &tv, sizeof(tv));
-    setsockopt(client_fd, SOL_SOCKET, SO_SNDTIMEO, &tv, sizeof(tv));
+    if (setsockopt(client_fd, SOL_SOCKET, SO_RCVTIMEO, &tv, sizeof(tv)) < 0) {
+      close(client_fd);
+      return;
+    }
+    if (setsockopt(client_fd, SOL_SOCKET, SO_SNDTIMEO, &tv, sizeof(tv)) < 0) {
+      close(client_fd);
+      return;
+    }
 
     int ka = 1;
-    setsockopt(client_fd, SOL_SOCKET, SO_KEEPALIVE, &ka, sizeof(ka));
-    int idle = 75;
-    setsockopt(client_fd, IPPROTO_TCP, TCP_KEEPIDLE, &idle, sizeof(idle));
+    if (setsockopt(client_fd, SOL_SOCKET, SO_KEEPALIVE, &ka, sizeof(ka)) < 0) {
+      close(client_fd);
+      return;
+    }
+    int idle = TCP_KEEPALIVE_IDLE;
+    if (setsockopt(client_fd, IPPROTO_TCP, TCP_KEEPIDLE, &idle, sizeof(idle)) < 0) {
+      close(client_fd);
+      return;
+    }
 
-    static thread_local std::vector<char> buf(256 * 1024);
+    static thread_local std::vector<char> buf(BUFFER_SIZE);
     size_t buf_len = 0;
     int req_count = 0;
-    constexpr int MAX_REQS = 5000;
+    constexpr int MAX_REQS = MAX_REQUESTS_PER_CONNECTION;
 
     bool alive = true;
 
@@ -96,7 +119,7 @@ public:
                            reply.size() - sent_total, MSG_NOSIGNAL);
           if (s <= 0) {
             if (errno == EAGAIN || errno == EWOULDBLOCK) {
-              usleep(500);
+              usleep(REQUEST_PROCESSING_DELAY_US);
               continue;
             }
             alive = false;

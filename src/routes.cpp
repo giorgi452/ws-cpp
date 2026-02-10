@@ -1,7 +1,7 @@
 #include "include/routes.hpp"
 #include "framework/include/router.hpp"
-#include "http_request.hpp"
-#include "http_response.hpp"
+#include "framework/include/http_request.hpp"
+#include "framework/include/http_response.hpp"
 
 using nlohmann::json;
 

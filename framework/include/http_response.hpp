@@ -5,6 +5,9 @@
 #include <sstream>
 #include <string>
 
+static constexpr int KEEPALIVE_TIMEOUT = 5;
+static constexpr int KEEPALIVE_MAX = 100;
+
 class HttpResponse {
 public:
   int status_code = 200;
@@ -57,7 +60,7 @@ public:
 
     if (keep_alive) {
       headers["Connection"] = "keep-alive";
-      headers["Keep-Alive"] = "timeout=5, max=100";
+      headers["Keep-Alive"] = "timeout=" + std::to_string(KEEPALIVE_TIMEOUT) + ", max=" + std::to_string(KEEPALIVE_MAX);
     } else {
       headers["Connection"] = "close";
     }
