@@ -1,7 +1,7 @@
 #include "include/routes.hpp"
-#include "framework/include/router.hpp"
 #include "framework/include/http_request.hpp"
 #include "framework/include/http_response.hpp"
+#include "framework/include/router.hpp"
 
 using nlohmann::json;
 
@@ -10,7 +10,7 @@ HttpResponse setup_router(HttpRequest request) {
 
   router.get("/", [](const HttpRequest &req) {
     HttpResponse res;
-    res.set_body("Welcome Home!");
+    res.set_body("Hello World!");
     return res;
   });
 

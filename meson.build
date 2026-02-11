@@ -8,6 +8,7 @@ project(
 inc = include_directories(['include', 'framework/include'])
 
 json_dep = dependency('nlohmann_json', fallback: ['nlohmann_json', 'nlohmann_json_dep'])
+uring_dep = dependency('liburing')
 
 executable(
   'ws-cpp',
@@ -16,6 +17,6 @@ executable(
     'src/routes.cpp',
   ],
   include_directories: inc,
-  dependencies: json_dep
+  dependencies: [json_dep, uring_dep]
 )
 

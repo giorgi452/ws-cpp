@@ -1,26 +1,12 @@
-#include "framework/include/socket.hpp"
-#include "framework/include/thread_pool.hpp"
-#include <netinet/in.h>
-#include "include/routes.hpp"
-#include <sys/socket.h>
-#include <unistd.h>
+#include "framework/include/io_uring_server.hpp"
 
-int main(int argc, char **argv) {
+int main() {
+  IoUringServer server;
 
-  Socket server;
-  int server_fd = server.init();
-
-  ThreadPool pool(std::thread::hardware_concurrency() * 2);
-
-  while (true) {
-    struct sockaddr_in client_addr;
-    socklen_t client_len = sizeof(client_addr);
-    int client_fd =
-        accept(server_fd, (struct sockaddr *)&client_addr, &client_len);
-
-    if (client_fd >= 0) {
-      pool.enqueue([client_fd, &server] { server.handle(client_fd); });
-    }
+  if (!server.init()) {
+    return 1;
   }
+
+  server.run();
   return 0;
 }
