@@ -1,7 +1,7 @@
-#include "framework/include/io_uring_server.hpp"
+#include "framework/include/socket.hpp"
 
 int main() {
-  IoUringServer server;
+  Socket server;
 
   if (!server.init()) {
     return 1;

@@ -21,40 +21,69 @@ struct ConnectionContext {
   std::vector<char> read_buffer;
   std::string write_data;
 
+  static constexpr size_t DEFAULT_BUFFER_SIZE = 4096;
+  
   ConnectionContext()
-      : fd(-1), event_type(EventType::READ), read_buffer(4096) {}
+      : fd(-1), event_type(EventType::READ), read_buffer(DEFAULT_BUFFER_SIZE) {}
 };
 
-class IoUringServer {
+class Socket {
 public:
   static constexpr int DEFAULT_PORT = 8080;
   static constexpr int QUEUE_DEPTH = 4096;
   static constexpr int MAX_FDS = 32768;
 
-  IoUringServer() : server_fd(-1) { fd_table.resize(MAX_FDS); }
+  Socket() : server_fd(-1) { fd_table.resize(MAX_FDS); }
+  
+  ~Socket() {
+    cleanup();
+  }
 
   bool init() {
     server_fd = socket(AF_INET, SOCK_STREAM, 0);
-    if (server_fd < 0)
+    if (server_fd < 0) {
       return false;
+    }
 
     int opt = 1;
-    setsockopt(server_fd, SOL_SOCKET, SO_REUSEADDR, &opt, sizeof(opt));
-    setsockopt(server_fd, IPPROTO_TCP, TCP_NODELAY, &opt, sizeof(opt));
+    if (setsockopt(server_fd, SOL_SOCKET, SO_REUSEADDR, &opt, sizeof(opt)) < 0) {
+      close(server_fd);
+      server_fd = -1;
+      return false;
+    }
+    
+    if (setsockopt(server_fd, IPPROTO_TCP, TCP_NODELAY, &opt, sizeof(opt)) < 0) {
+      close(server_fd);
+      server_fd = -1;
+      return false;
+    }
 
     sockaddr_in addr{};
     addr.sin_family = AF_INET;
     addr.sin_addr.s_addr = INADDR_ANY;
     addr.sin_port = htons(DEFAULT_PORT);
 
-    if (bind(server_fd, (struct sockaddr *)&addr, sizeof(addr)) < 0)
+    if (bind(server_fd, (struct sockaddr *)&addr, sizeof(addr)) < 0) {
+      close(server_fd);
+      server_fd = -1;
       return false;
-    if (listen(server_fd, SOMAXCONN) < 0)
+    }
+    
+    if (listen(server_fd, SOMAXCONN) < 0) {
+      close(server_fd);
+      server_fd = -1;
       return false;
+    }
 
     // Initialize ring
     int ret = io_uring_queue_init(QUEUE_DEPTH, &ring, 0);
-    return ret == 0;
+    if (ret != 0) {
+      close(server_fd);
+      server_fd = -1;
+      return false;
+    }
+    
+    return true;
   }
 
   void run() {
@@ -179,5 +208,22 @@ private:
         fd_table[fd].reset();
       }
     }
+  }
+
+  void cleanup() {
+    if (server_fd >= 0) {
+      close(server_fd);
+      server_fd = -1;
+    }
+    
+    for (auto& conn : fd_table) {
+      if (conn && conn->fd >= 0) {
+        close(conn->fd);
+        conn->fd = -1;
+      }
+    }
+    fd_table.clear();
+    
+    io_uring_queue_exit(&ring);
   }
 };

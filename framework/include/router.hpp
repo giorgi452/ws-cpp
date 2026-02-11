@@ -4,6 +4,7 @@
 #include "http_response.hpp"
 #include <functional>
 #include <string>
+#include <unordered_map>
 
 using Handler = std::function<HttpResponse(const HttpRequest &)>;
 
@@ -15,6 +16,10 @@ struct RouteKey {
 
   bool operator==(const RouteKey &other) const {
     return method == other.method && path == other.path;
+  }
+  
+  bool operator!=(const RouteKey &other) const {
+    return !(*this == other);
   }
 };
 
