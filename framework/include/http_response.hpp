@@ -7,6 +7,7 @@
 
 static constexpr int KEEPALIVE_TIMEOUT = 5;
 static constexpr int KEEPALIVE_MAX = 100;
+static constexpr int JSON_INDENTATION = 4;
 
 class HttpResponse {
 public:
@@ -26,7 +27,7 @@ public:
   }
 
   void set_json(const nlohmann::json &j) {
-    set_body(j.dump(4), "application/json");
+    set_body(j.dump(JSON_INDENTATION), "application/json");
   }
 
   void set_status(int code) {
@@ -53,19 +54,21 @@ public:
     }
   }
 
-  std::string to_string() {
+  std::string to_string() const {
     std::ostringstream oss;
 
     oss << "HTTP/1.1 " << status_code << " " << status_message << "\r\n";
 
+    auto local_headers = headers;
+    
     if (keep_alive) {
-      headers["Connection"] = "keep-alive";
-      headers["Keep-Alive"] = "timeout=" + std::to_string(KEEPALIVE_TIMEOUT) + ", max=" + std::to_string(KEEPALIVE_MAX);
+      local_headers["Connection"] = "keep-alive";
+      local_headers["Keep-Alive"] = "timeout=" + std::to_string(KEEPALIVE_TIMEOUT) + ", max=" + std::to_string(KEEPALIVE_MAX);
     } else {
-      headers["Connection"] = "close";
+      local_headers["Connection"] = "close";
     }
 
-    for (auto const &[key, val] : headers) {
+    for (auto const &[key, val] : local_headers) {
       oss << key << ": " << val << "\r\n";
     }
 
