@@ -7,7 +7,7 @@
 
 static constexpr int KEEPALIVE_TIMEOUT = 5;
 static constexpr int KEEPALIVE_MAX = 100;
-static constexpr int JSON_INDENTATION = 4;
+static constexpr int JSON_INDENTATION = -1; // No indentation for production
 
 class HttpResponse {
 public:
@@ -17,7 +17,7 @@ public:
   std::map<std::string, std::string> headers;
   bool keep_alive = true;
 
-  HttpResponse() {}
+  HttpResponse() = default;
 
   void set_body(const std::string &content,
                 const std::string &content_type = "text/plain") {
@@ -59,21 +59,19 @@ public:
 
     oss << "HTTP/1.1 " << status_code << " " << status_message << "\r\n";
 
-    auto local_headers = headers;
-    
     if (keep_alive) {
-      local_headers["Connection"] = "keep-alive";
-      local_headers["Keep-Alive"] = "timeout=" + std::to_string(KEEPALIVE_TIMEOUT) + ", max=" + std::to_string(KEEPALIVE_MAX);
+      oss << "Connection: keep-alive\r\n";
+      oss << "Keep-Alive: timeout=" << KEEPALIVE_TIMEOUT
+          << ", max=" << KEEPALIVE_MAX << "\r\n";
     } else {
-      local_headers["Connection"] = "close";
+      oss << "Connection: close\r\n";
     }
 
-    for (auto const &[key, val] : local_headers) {
+    for (const auto &[key, val] : headers) {
       oss << key << ": " << val << "\r\n";
     }
 
     oss << "\r\n";
-
     oss << body;
 
     return oss.str();

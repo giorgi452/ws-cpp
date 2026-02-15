@@ -22,7 +22,7 @@ struct ConnectionContext {
   std::string write_data;
 
   static constexpr size_t DEFAULT_BUFFER_SIZE = 4096;
-  
+
   ConnectionContext()
       : fd(-1), event_type(EventType::READ), read_buffer(DEFAULT_BUFFER_SIZE) {}
 };
@@ -34,10 +34,8 @@ public:
   static constexpr int MAX_FDS = 32768;
 
   Socket() : server_fd(-1) { fd_table.resize(MAX_FDS); }
-  
-  ~Socket() {
-    cleanup();
-  }
+
+  ~Socket() { cleanup(); }
 
   bool init() {
     server_fd = socket(AF_INET, SOCK_STREAM, 0);
@@ -46,13 +44,15 @@ public:
     }
 
     int opt = 1;
-    if (setsockopt(server_fd, SOL_SOCKET, SO_REUSEADDR, &opt, sizeof(opt)) < 0) {
+    if (setsockopt(server_fd, SOL_SOCKET, SO_REUSEADDR, &opt, sizeof(opt)) <
+        0) {
       close(server_fd);
       server_fd = -1;
       return false;
     }
-    
-    if (setsockopt(server_fd, IPPROTO_TCP, TCP_NODELAY, &opt, sizeof(opt)) < 0) {
+
+    if (setsockopt(server_fd, IPPROTO_TCP, TCP_NODELAY, &opt, sizeof(opt)) <
+        0) {
       close(server_fd);
       server_fd = -1;
       return false;
@@ -68,21 +68,20 @@ public:
       server_fd = -1;
       return false;
     }
-    
+
     if (listen(server_fd, SOMAXCONN) < 0) {
       close(server_fd);
       server_fd = -1;
       return false;
     }
 
-    // Initialize ring
     int ret = io_uring_queue_init(QUEUE_DEPTH, &ring, 0);
     if (ret != 0) {
       close(server_fd);
       server_fd = -1;
       return false;
     }
-    
+
     return true;
   }
 
@@ -172,8 +171,8 @@ private:
           close(client_fd);
         }
       }
-      delete ctx;      // Important: Clean up the temporary accept object
-      submit_accept(); // Re-arm the listener
+      delete ctx;
+      submit_accept();
       return;
     }
 
@@ -215,15 +214,15 @@ private:
       close(server_fd);
       server_fd = -1;
     }
-    
-    for (auto& conn : fd_table) {
+
+    for (auto &conn : fd_table) {
       if (conn && conn->fd >= 0) {
         close(conn->fd);
         conn->fd = -1;
       }
     }
     fd_table.clear();
-    
+
     io_uring_queue_exit(&ring);
   }
 };
